@@ -8,7 +8,8 @@ from cascada.bitvector.ssa import RoundBasedFunction
 from cascada.primitives.blockcipher import Encryption, Cipher
 
 from cascada.differential.opmodel import OpModel
-from cascada.differential.difference import XorDiff, RXDiff
+from cascada.bitvector.secondaryop import PopCount
+from cascada.bitvector import core
 
 
 class BeltInstance(enum.Enum):
@@ -24,32 +25,18 @@ def get_Belt_instance(belt_instance):
     else:
         raise ValueError("invalid instance of cipher")
 
-    # RotHi operation
-    def  circularleftshift(value, k):
-        bitlength = 32
-        return (value << (k % bitlength) & 2 ** bitlength - 1) ^ (value >> (bitlength - k) % bitlength)
-
-    # Represent 32-bit number as list of bytes
-    def int2list(x):
-        return [x >> i & 0xff for i in [24, 16, 8, 0]]
-
-    # Represent list of bytes as 32-bit number
-    def list2int(x):
-        l = [24, 16, 8, 0]
-        return sum([x[i] << l[i] for i in range(4)])
-
-    # Modular Substraction
-    def modsub(x, y):
-        mod = 2**32
-        return (x - y) % mod
-
-    # Modular addition
-    def modadd(*x):
-        mod = 2**32
-        res = 0
-        for el in x:
-            res = (res + reverse(el)) % mod
-        return reverse(res)
+    # # Modular Substraction
+    # def modsub(x, y):
+    #     mod = 2**32
+    #     return (x - y) % mod
+    #
+    # # Modular addition
+    # def modadd(*x):
+    #     mod = 2**32
+    #     res = 0
+    #     for el in x:
+    #         res = (res + reverse(el)) % mod
+    #     return reverse(res)
 
     H = [0xB1, 0x94, 0xBA, 0xC8, 0x0A, 0x08, 0xF5, 0x3B, 0x36, 0x6D, 0x00, 0x8E, 0x58, 0x4A, 0x5D, 0xE4,
          0x85, 0x04, 0xFA, 0x9D, 0x1B, 0xB6, 0xC7, 0xAC, 0x25, 0x2E, 0x72, 0xC2, 0x02, 0xFD, 0xCE, 0x0D,
@@ -70,18 +57,53 @@ def get_Belt_instance(belt_instance):
 
     # H-transformation: replacing byte with another value from table
     def htransformation(x):
-        return H[x]
+        return Constant(H[int(str(x), 16)], 8)
 
-    # G-transformation
+    def rot_word(my_word):
+        # [a0, a1, a2, a3]  ->  [a3, a2, a1, a0]
+        return [my_word[(3 - i) % 4] for i in range(4)]
+
+    # def Add(a, b):
+    #     list_a = hex2byte_list(str(a)[2:])
+    #     print(list_a)
+    #     print(int(str(list_a[0]), 16))
+    #     list_b = hex2byte_list(str(b)[2:])
+    #     print(list_b)
+    #     x1 = (int(str(list_a[0]), 16) + int(str(list_b[0]), 16)) % 256
+    #     x2 = (int(str(list_a[1]), 16) + int(str(list_b[1]), 16)) % 256
+    #     x3 = (int(str(list_a[2]), 16) + int(str(list_b[2]), 16)) % 256
+    #     x4 = (int(str(list_a[3]), 16) + int(str(list_b[3]), 16)) % 256
+    #     print(x1, x2, x3, x4)
+    #     print(hex(x1), hex(x2), hex(x3), hex(x4))
+
+    def hex2byte_list(state):
+        """Convert the hexadecimal string to a byte list
+
+                >>> hex2byte_list("000102030405060708090a0b0c0d0e0f")
+                [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]
+
+            """
+        byte_list = []
+        for i in range(0, len(state), 2):
+            my_byte = int(state[i:i + 2], base=16)
+            byte_list.append(Constant(my_byte, 8))
+        return byte_list
+
+    def  circularleftshift(value, k):
+        return RotateLeft(value, k)
+
     def gtransformation(x, k):
-        res = list2int([htransformation(i) for i in int2list(x)])
-        return reverse(circularleftshift(reverse(res), k))
+        list_hex = hex2byte_list(str(x)[2:])
+        res = [htransformation(i) for i in list_hex]
+        res_rev = rot_word(res)
 
-    # Reverse bytes in word x
-    def reverse(x):
-        l = int2list(x)
-        l.reverse()
-        return list2int(l)
+        string = str(res_rev[0]) + str(res_rev[1])[2:] + str(res_rev[2])[2:] + str(res_rev[3])[2:]
+        value = RotateLeft(Constant(int(string, 16), 32), k)
+        list_hex = hex2byte_list(str(value)[2:])
+        res_rev = rot_word(list_hex)
+        string = str(res_rev[0]) + str(res_rev[1])[2:] + str(res_rev[2])[2:] + str(res_rev[3])[2:]
+        res_rev = Constant(int(string, 16), 32)
+        return res_rev
 
     class BeltKeySchedule(RoundBasedFunction):
         """Key schedule function."""
@@ -119,35 +141,25 @@ def get_Belt_instance(belt_instance):
 
         @classmethod
         def eval(cls, a, b, c, d):
-            a1 = int(str(a), 16)
-            b1 = int(str(b), 16)
-            c1 = int(str(c), 16)
-            d1 = int(str(d), 16)
             k = [None for _ in range(56 + 1)]
             for j in range(0, 56):
-                k[j] = int(str(cls.round_keys[j % 8]), 16)
+                k[j] = cls.round_keys[j % 8]
             for i in range(cls.num_rounds):
-                #a, b, c, d = rf(a, b, c, d, cls.round_keys[i])
-                b1 = b1 ^ gtransformation(modadd(a1, k[7 * (i + 1) - 7]), 5)
-                c1 = c1 ^ gtransformation(modadd(d1, k[7 * (i + 1) - 6]), 21)
-                a1 = reverse(modsub(reverse(a1), reverse(gtransformation(modadd(b1, k[7 * (i + 1) - 5]), 13))))
-                e1 = (gtransformation(modadd(b1, c1, k[7 * (i + 1) - 4]), 21)) ^ reverse(i + 1)
-                b1 = modadd(b1, e1)
-                c1 = reverse(modsub(reverse(c1), reverse(e1)))
-                d1 = modadd(d1, gtransformation(modadd(c1, k[7 * (i + 1) - 3]), 13))
-                b1 = b1 ^ gtransformation(modadd(a1, k[7 * (i + 1) - 2]), 21)
-                c1 = c1 ^ gtransformation(modadd(d1, k[7 * (i + 1) - 1]), 5)
-                a1, b1 = b1, a1
-                c1, d1 = d1, c1
-                b1, c1 = c1, b1
-                a = Constant(a1, 32)
-                b = Constant(b1, 32)
-                c = Constant(c1, 32)
-                d = Constant(d1, 32)
+                b = b ^ gtransformation(a + k[7 * (i + 1) - 7], 5)
+                c = c ^ gtransformation(d + k[7 * (i + 1) - 6], 21)
+                a = a - gtransformation(b + k[7 * (i + 1) - 5], 13)
+                e = (gtransformation(b + c + k[7 * (i + 1) - 4], 21)) ^ (i + 1)
+                b = b + e
+                c = c - e
+                d = d + gtransformation(c + k[7 * (i + 1) - 3], 13)
+                b = b ^ gtransformation(a + k[7 * (i + 1) - 2], 21)
+                c = c ^ gtransformation(d + k[7 * (i + 1) - 1], 5)
+                a, b = b, a
+                c, d = d, c
+                b, c = c, b
+
                 cls.add_round_outputs(a, b, c, d)
-            #print(a1, b1, c1, d1)
-            #print(hex(a1), hex(b1), hex(c1), hex(d1))
-            return a, b, c, d
+            return b, d, a, c
 
     class BeltCipher(Cipher):
         key_schedule = BeltKeySchedule
