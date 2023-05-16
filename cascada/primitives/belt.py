@@ -156,3 +156,13 @@ class BeltCipher(Cipher):
     def set_num_rounds(cls, new_num_rounds):
         cls.key_schedule.set_num_rounds(new_num_rounds)
         cls.encryption.set_num_rounds(new_num_rounds)
+
+    @classmethod
+    def test(cls):
+        old_num_rounds = cls.num_rounds
+
+        plaintext = (0xb194bac8, 0x0a08f53b, 0x366d008e, 0x584a5de4)
+        key = (0xe9dee72c, 0x8f0c0fa6, 0x2ddb49f4, 0x6f739647, 0x06075316, 0xed247a37, 0x39cba383, 0x03a98bf6)
+        assert cls(plaintext, key) == (0x69cca1c9, 0x3557c9e3, 0xd66bc3e0, 0xfa88fa6e)
+
+        cls.set_num_rounds(old_num_rounds)
