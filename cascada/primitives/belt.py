@@ -28,7 +28,7 @@ class BeltKeySchedule(RoundBasedFunction):
     def eval(cls, *master_key):
         round_keys = [None for _ in range(cls.num_rounds)]
         for i in range(cls.num_rounds):
-            round_keys[i] = Reverse(master_key[i % 8])
+            round_keys[i] = master_key[i % 8]
         return round_keys
 
 _H = [
@@ -67,14 +67,6 @@ def BeltG(x, r):
     x = RotateLeft(x, r)
     return x
 
-def Reverse(x):
-    o1 = Extract(x, 7, 0)
-    o2 = Extract(x, 15, 8)
-    o3 = Extract(x, 23, 16)
-    o4 = Extract(x, 31, 24)
-    x = Concat(Concat(Concat(o1, o2), o3), o4)
-    return x
-
 class BeltEncryption(Encryption, RoundBasedFunction):
     """Encryption function."""
     num_rounds = 56
@@ -87,13 +79,9 @@ class BeltEncryption(Encryption, RoundBasedFunction):
 
     @classmethod
     def eval(cls, a, b, c, d):
-        K = list(cls.round_keys)
+        K = cls.round_keys
         i = 0
-        a = Reverse(a)
-        b = Reverse(b)
-        c = Reverse(c)
-        d = Reverse(d)
-        while i < cls.num_rounds:
+        while True:
             # step 1
             b = b ^ BeltG(a + K[i], 5)
             cls.add_round_outputs(a, b, c, d)
@@ -134,18 +122,27 @@ class BeltEncryption(Encryption, RoundBasedFunction):
                 break
             # step 7
             c = c ^ BeltG(d + K[i], 5)
-            a, b = b, a
-            c, d = d, c
-            b, c = c, b
+            a, b, c, d = b, d, a, c
             cls.add_round_outputs(a, b, c, d)
             i += 1
             if i == cls.num_rounds:
                 break
-        a = Reverse(a)
-        b = Reverse(b)
-        c = Reverse(c)
-        d = Reverse(d)
-        return b, d, a, c
+        if i == 56:
+            a, b, c, d = b, d, a, c
+        return a, b, c, d
+
+def Reverse(x):
+    r = x % 256
+    x = x // 256
+    r = r * 256 + x % 256
+    x = x // 256
+    r = r * 256 + x % 256
+    x = x // 256
+    r = r * 256 + x % 256
+    return r
+
+def ReverseAll(*xs):
+    return tuple(Reverse(x) for x in xs)
 
 class BeltCipher(Cipher):
     """The block cipher Belt."""
@@ -160,9 +157,9 @@ class BeltCipher(Cipher):
     @classmethod
     def test(cls):
         old_num_rounds = cls.num_rounds
-
-        plaintext = (0xb194bac8, 0x0a08f53b, 0x366d008e, 0x584a5de4)
-        key = (0xe9dee72c, 0x8f0c0fa6, 0x2ddb49f4, 0x6f739647, 0x06075316, 0xed247a37, 0x39cba383, 0x03a98bf6)
-        assert cls(plaintext, key) == (0x69cca1c9, 0x3557c9e3, 0xd66bc3e0, 0xfa88fa6e)
-
+        cls.set_num_rounds(56)
+        pt = ReverseAll(0xb194bac8, 0x0a08f53b, 0x366d008e, 0x584a5de4)
+        key =ReverseAll(0xe9dee72c, 0x8f0c0fa6, 0x2ddb49f4, 0x6f739647, 0x06075316, 0xed247a37, 0x39cba383, 0x03a98bf6)
+        ct = ReverseAll(0x69cca1c9, 0x3557c9e3, 0xd66bc3e0, 0xfa88fa6e)
+        assert cls(pt, key) == ct
         cls.set_num_rounds(old_num_rounds)
