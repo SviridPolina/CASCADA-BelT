@@ -531,7 +531,6 @@ class ChFinder(object):
         else:
             assert isinstance(self.ch_model, abstractproperty.chmodel.ChModel)
             Characteristic_cls = self.ch_model.__class__._get_Characteristic_cls()
-
         init_props = Characteristic_cls.get_properties_for_initialization(self.ch_model, solution_var2ct)
         input_prop, output_prop, external_props, assign_outprop_list = init_props
 
@@ -991,6 +990,15 @@ class ChFinder(object):
                 else:
                     self._last_model = solver.get_model()
                     last_ch_found = self._pysmt_model2ch(self._last_model, target_weight)
+
+                    if last_ch_found.output_prop == [type(last_ch_found.output_prop[0])(core.Constant(0, last_ch_found.output_prop[0].val.width)),
+                                                     type(last_ch_found.output_prop[0])(core.Constant(0, last_ch_found.output_prop[0].val.width)),
+                                                     type(last_ch_found.output_prop[0])(core.Constant(0, last_ch_found.output_prop[0].val.width)),
+                                                     type(last_ch_found.output_prop[0])(core.Constant(0, last_ch_found.output_prop[0].val.width))]:
+                        # print('Сharacteristic is found but od(output difference) = 0')
+                        last_ch_found = None
+                        break
+
 
                     valid_ch = True
                     if empirical_weight_options is not None:
@@ -2052,7 +2060,6 @@ def round_based_ch_search(
 
     if kwargs:
         raise ValueError(f"invalid arguments: {kwargs}")
-
     if find_cipher_ch:
         list_assert_type = assert_type
     else:
@@ -2084,7 +2091,6 @@ def round_based_ch_search(
     num_rounds = initial_num_rounds
     while True:
         func.set_num_rounds(num_rounds)
-
         if printing_mode != PrintingMode.Silent:
             if num_rounds != initial_num_rounds:
                 smart_print("")
