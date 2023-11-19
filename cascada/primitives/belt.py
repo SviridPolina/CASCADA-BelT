@@ -1,4 +1,15 @@
-"""Belt block cipher."""
+"""Belt block cipher.
+
+Source: https://apmi.bsu.by/assets/files/std/belt-spec371.pdf
+
+See also:
+* https://github.com/bcrypto/belt
+* https://github.com/bcrypto/belt-bign-bake
+   
+**Note**. Each of the 8 large rounds of Belt is divided into 7 subrounds
+resulting in 56 small rounds.
+"""
+
 import enum
 
 from cascada.bitvector.core import Constant
@@ -54,7 +65,7 @@ class SboxLut(LutOperation):
     """The 8-bit S-box of Belt."""
     lut = [Constant(x, 8) for x in _H]
 
-# weight 1 to count number of active S-boxes
+# weight 1 to count the number of active S-boxes
 SboxLut.xor_model = get_differential_weak_model(SboxLut, XorDiff, 1)
 SboxLut.linear_model = get_linear_weak_model(SboxLut, 1)
 
@@ -68,7 +79,7 @@ def BeltG(x, r):
     return x
 
 class BeltEncryption(Encryption, RoundBasedFunction):
-    """Encryption function."""
+    """Encryption function of Belt."""
     num_rounds = 56
     input_widths = [32, 32, 32, 32]
     output_widths = [32, 32, 32, 32]
@@ -102,9 +113,9 @@ class BeltEncryption(Encryption, RoundBasedFunction):
                 break
             # step 4
             e = BeltG(b + c + K[i], 21) ^ Constant(i // 7 + 1, 32)
-            cls.add_round_outputs(a, b, c, d)
             b = b + e
             c = c - e
+            cls.add_round_outputs(a, b, c, d)
             i += 1
             if i == cls.num_rounds:
                 break
