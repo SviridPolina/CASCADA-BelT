@@ -5,7 +5,7 @@ Source: https://apmi.bsu.by/assets/files/std/belt-spec371.pdf
 See also:
 * https://github.com/bcrypto/belt
 * https://github.com/bcrypto/belt-bign-bake
-   
+
 **Note**. Each of the 8 large rounds of Belt is divided into 7 subrounds
 resulting in 56 small rounds.
 """
@@ -112,9 +112,9 @@ class BeltEncryption(Encryption, RoundBasedFunction):
             if i == cls.num_rounds:
                 break
             # step 4
-            e = BeltG(b + c + K[i], 21) ^ Constant(i // 7 + 1, 32)
-            b = b + e
-            c = c - e
+            c = c + b
+            b = b + (BeltG(c + K[i], 21) ^ Constant(i // 7 + 1, 32))
+            c = c - b
             cls.add_round_outputs(a, b, c, d)
             i += 1
             if i == cls.num_rounds:
