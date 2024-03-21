@@ -66,7 +66,7 @@ class SboxLut(LutOperation):
     lut = [Constant(x, 8) for x in _H]
 
 # weight 1 to count the number of active S-boxes
-SboxLut.xor_model = get_differential_weak_model(SboxLut, XorDiff, 1)
+SboxLut.xor_model = get_differential_weak_model(SboxLut, XorDiff, 5)
 SboxLut.linear_model = get_linear_weak_model(SboxLut, 1)
 
 def BeltG(x, r):
