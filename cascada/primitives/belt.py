@@ -5,12 +5,10 @@ Source: https://apmi.bsu.by/assets/files/std/belt-spec371.pdf
 See also:
 * https://github.com/bcrypto/belt
 * https://github.com/bcrypto/belt-bign-bake
-
+   
 **Note**. Each of the 8 large rounds of Belt is divided into 7 subrounds
 resulting in 56 small rounds.
 """
-
-import enum
 
 from cascada.bitvector.core import Constant
 from cascada.bitvector.operation import RotateLeft, RotateRight, Extract, Concat
@@ -21,7 +19,8 @@ from cascada.primitives.blockcipher import Encryption, Cipher
 from cascada.differential.opmodel import get_weak_model as get_differential_weak_model
 from cascada.linear.opmodel import get_weak_model as get_linear_weak_model
 
-from pprint import pprint
+from cascada.abstractproperty.opmodel import log2_decimal
+import decimal
 
 class BeltKeySchedule(RoundBasedFunction):
     """Key schedule for Belt."""
@@ -65,9 +64,11 @@ class SboxLut(LutOperation):
     """The 8-bit S-box of Belt."""
     lut = [Constant(x, 8) for x in _H]
 
-# weight 1 to count the number of active S-boxes
-SboxLut.xor_model = get_differential_weak_model(SboxLut, XorDiff, 5)
-SboxLut.linear_model = get_linear_weak_model(SboxLut, 1)
+max_ddt = 5 # -log2(8 / 256)
+SboxLut.xor_model = get_differential_weak_model(SboxLut, XorDiff, max_ddt)
+
+max_corr = -log2_decimal(decimal.Decimal(256 - 2 * 102) / 256)
+SboxLut.linear_model = get_linear_weak_model(SboxLut, max_corr)
 
 def BeltG(x, r):
     o1 = SboxLut(Extract(x, 7, 0))
